@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>레트로 스타일 아트 제너레이터</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #008080;
+            color: #000;
+            font-family: 'VT323', monospace; /* Google Font for retro feel */
+            font-smooth: never;
+            -webkit-font-smoothing: none;
+        }
+        .win-window {
+            background-color: #C0C0C0;
+            border: 2px outset #fff;
+            box-shadow: 1px 1px 0 1px #000;
+        }
+        .win-titlebar {
+            background: linear-gradient(to right, #000080, #1084d0);
+            color: #fff;
+            padding: 3px 5px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .win-panel {
+            border: 2px inset #fff;
+            border-top-color: #808080;
+            border-left-color: #808080;
+            padding: 8px;
+        }
+        .win-btn {
+            background-color: #C0C0C0;
+            border: 2px outset #fff;
+            box-shadow: 1px 1px 0 0 #000;
+            padding: 4px 12px;
+            cursor: pointer;
+        }
+        .win-btn:active {
+            border-style: inset;
+            box-shadow: none;
+        }
+        .slider {
+            -webkit-appearance: none; appearance: none;
+            width: 100%; height: 2px; background: #808080;
+            outline: none; border: 1px inset #fff;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 10px; height: 20px; background: #C0C0C0;
+            border: 2px outset #fff; cursor: pointer;
+        }
+        .win-fieldset {
+            border: 2px groove #fff;
+            border-top-color: #808080;
+            border-left-color: #808080;
+            padding: 10px;
+            margin-top: 5px;
+        }
+        .win-legend {
+            padding: 0 5px;
+            margin-left: 10px;
+        }
+        .win-radio-label {
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        .win-radio {
+             display: inline-block;
+             width: 12px; height: 12px;
+             border-radius: 50%;
+             border: 2px inset #fff;
+             background-color: #fff;
+             margin-right: 6px;
+             position: relative;
+        }
+        input[type="radio"]:checked + .win-radio::after {
+            content: '';
+            display: block;
+            width: 5px; height: 5px;
+            border-radius: 50%;
+            background-color: #000;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .blinking-cursor::after {
+            content: '_';
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body class="text-lg h-screen overflow-hidden">
+
+    <div class="h-full flex flex-col">
+        <!-- Top Fixed Panel: Result -->
+        <div class="flex-shrink-0 p-2 bg-[#008080]" style="height: 50vh;">
+            <div id="resultWindow" class="win-window flex flex-col h-full">
+                <div class="win-titlebar">
+                    <span id="previewTitle">결과물.bmp</span>
+                    <button id="viewModeToggle" class="win-btn text-base py-0 px-2">원본 보기</button>
+                </div>
+                <div id="resultPanel" class="win-panel flex-1 flex items-center justify-center p-2 bg-black overflow-auto">
+                    <div id="standbyText" class="text-gray-400 text-2xl">C:\><span class="blinking-cursor"></span></div>
+                    <canvas id="convertedPreview" class="max-w-full max-h-full object-contain hidden"></canvas>
+                    <img id="originalPreview" src="" alt="Original" class="max-w-full max-h-full object-contain hidden">
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Scrollable Panel: Controls -->
+        <div class="flex-1 overflow-y-auto p-2">
+            <div class="max-w-xl mx-auto space-y-4">
+                 <!-- Controls Window -->
+                <div class="win-window flex flex-col">
+                    <h2 class="win-titlebar">제어판</h2>
+                    <div class="win-panel space-y-2">
+                        
+                        <fieldset class="win-fieldset">
+                            <legend class="win-legend">파일</legend>
+                            <div class="space-y-2 p-1">
+                                <label for="imageLoader" class="win-btn w-full text-center block">이미지 열기...</label>
+                                <input type="file" id="imageLoader" class="hidden" accept="image/*">
+                                <p id="fileName" class="text-center truncate h-6 leading-6">&nbsp;</p>
+                                <button id="downloadBtn" class="win-btn w-full text-center invisible">저장...</button>
+                                <p id="statusMessage" class="text-center h-6 leading-6">&nbsp;</p>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="win-fieldset">
+                            <legend class="win-legend">색상 팔레트</legend>
+                             <div id="paletteOptions" class="p-1 grid grid-cols-3 gap-2">
+                                <label class="win-radio-label"><input type="radio" name="palette" value="16" class="hidden" checked><span class="win-radio"></span>16색</label>
+                                <label class="win-radio-label"><input type="radio" name="palette" value="64" class="hidden"><span class="win-radio"></span>64색</label>
+                                <label class="win-radio-label"><input type="radio" name="palette" value="256" class="hidden"><span class="win-radio"></span>256색</label>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="win-fieldset">
+                            <legend class="win-legend">이미지 조정</legend>
+                             <div class="space-y-2 p-1">
+                                <div><label for="brightnessSlider" class="flex justify-between"><span>밝기</span><span id="brightnessValue">0</span></label><input type="range" min="-100" max="100" value="0" class="slider" id="brightnessSlider"></div>
+                                <div><label for="contrastSlider" class="flex justify-between"><span>대비</span><span id="contrastValue">0</span></label><input type="range" min="-100" max="100" value="0" class="slider" id="contrastSlider"></div>
+                                <div><label for="saturationSlider" class="flex justify-between"><span>채도</span><span id="saturationValue">0</span></label><input type="range" min="-100" max="100" value="0" class="slider" id="saturationSlider"></div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="win-fieldset">
+                            <legend class="win-legend">레트로 효과</legend>
+                            <div class="space-y-2 p-1">
+                                <div><label for="pixelationSlider" class="flex justify-between"><span>픽셀 크기</span><span id="pixelationValue">6</span></label><input type="range" min="1" max="24" value="6" class="slider" id="pixelationSlider"></div>
+                                <div><label class="block mb-1">디더링</label>
+                                    <div id="ditherOptions" class="grid grid-cols-2 gap-2">
+                                         <label class="win-radio-label"><input type="radio" name="ditherType" value="floyd" class="hidden"><span class="win-radio"></span>플로이드</label>
+                                         <label class="win-radio-label"><input type="radio" name="ditherType" value="bayer" class="hidden" checked><span class="win-radio"></span>베이어</label>
+                                         <label class="win-radio-label"><input type="radio" name="ditherType" value="atkinson" class="hidden"><span class="win-radio"></span>앳킨슨</label>
+                                         <label class="win-radio-label"><input type="radio" name="ditherType" value="none" class="hidden"><span class="win-radio"></span>없음</label>
+                                    </div>
+                                </div>
+                                <div><label for="ditherStrengthSlider" class="flex justify-between"><span>디더링 강도</span><span id="ditherStrengthValue">100</span></label><input type="range" min="0" max="100" value="100" class="slider" id="ditherStrengthSlider"></div>
+                            </div>
+                        </fieldset>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ui = {
+            imageLoader: document.getElementById('imageLoader'), fileName: document.getElementById('fileName'),
+            downloadBtn: document.getElementById('downloadBtn'), statusMessage: document.getElementById('statusMessage'),
+            originalPreview: document.getElementById('originalPreview'), convertedPreview: document.getElementById('convertedPreview'),
+            ditherOptions: document.getElementById('ditherOptions'), paletteOptions: document.getElementById('paletteOptions'),
+            viewModeToggle: document.getElementById('viewModeToggle'), previewTitle: document.getElementById('previewTitle'),
+            standbyText: document.getElementById('standbyText'),
+            sliders: {
+                brightness: document.getElementById('brightnessSlider'), contrast: document.getElementById('contrastSlider'),
+                saturation: document.getElementById('saturationSlider'), pixelation: document.getElementById('pixelationSlider'),
+                ditherStrength: document.getElementById('ditherStrengthSlider'),
+            },
+            values: {
+                brightness: document.getElementById('brightnessValue'), contrast: document.getElementById('contrastValue'),
+                saturation: document.getElementById('saturationValue'), pixelation: document.getElementById('pixelationValue'),
+                ditherStrength: document.getElementById('ditherStrengthValue'),
+            }
+        };
+
+        let currentImage = null; let originalFileName = ''; let processingTimeout;
+
+        function generatePalettes() {
+            const p16=[[0,0,0],[128,0,0],[0,128,0],[128,128,0],[0,0,128],[128,0,128],[0,128,128],[192,192,192],[128,128,128],[255,0,0],[0,255,0],[255,255,0],[0,0,255],[255,0,255],[0,255,255],[255,255,255]];
+            const p64=[], p256=[];
+            for(let r=0;r<4;r++) for(let g=0;g<4;g++) for(let b=0;b<4;b++) p64.push([r*85,g*85,b*85]);
+            for(let r=0;r<6;r++) for(let g=0;g<6;g++) for(let b=0;b<6;b++) p256.push([r*51,g*51,b*51]);
+            return {'16':p16, '64':p64, '256':p256};
+        }
+        const PALETTES = generatePalettes();
+        const bayerMatrix = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+
+        function handleImage(e) {
+            const file = e.target.files[0]; if (!file) return;
+            originalFileName = file.name.replace(/\.[^/.]+$/, "");
+            ui.fileName.textContent = file.name;
+            ui.standbyText.classList.add('hidden');
+            ui.convertedPreview.classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                currentImage = new Image();
+                currentImage.onload = () => { ui.originalPreview.src = event.target.result; scheduleProcessImage(); };
+                currentImage.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function scheduleProcessImage() {
+            ui.statusMessage.textContent = '\xa0';
+            ui.downloadBtn.classList.add('invisible');
+            clearTimeout(processingTimeout);
+            processingTimeout = setTimeout(processImage, 50);
+        }
+
+        function processImage() {
+            if (!currentImage) return;
+            const settings = {
+                pixelSize: parseInt(ui.sliders.pixelation.value, 10),
+                ditherType: document.querySelector('input[name="ditherType"]:checked').value,
+                palette: PALETTES[document.querySelector('input[name="palette"]:checked').value],
+                brightness: parseInt(ui.sliders.brightness.value, 10),
+                contrast: parseInt(ui.sliders.contrast.value, 10),
+                saturation: parseInt(ui.sliders.saturation.value, 10),
+                ditherStrength: parseInt(ui.sliders.ditherStrength.value, 10) / 100,
+            };
+            const width = currentImage.width; const height = currentImage.height;
+            const tempCanvas = document.createElement('canvas'); const tempCtx = tempCanvas.getContext('2d');
+            const pixelatedWidth = Math.max(1, Math.floor(width / settings.pixelSize));
+            const pixelatedHeight = Math.max(1, Math.floor(height / settings.pixelSize));
+            tempCanvas.width = pixelatedWidth; tempCanvas.height = pixelatedHeight;
+            tempCtx.drawImage(currentImage, 0, 0, pixelatedWidth, pixelatedHeight);
+            
+            const imageData = tempCtx.getImageData(0, 0, pixelatedWidth, pixelatedHeight);
+            applyManualFilters(imageData.data, settings);
+
+            const ditherFunc = {'floyd': applyFloydSteinbergDither, 'bayer': applyBayerDither, 'atkinson': applyAtkinsonDither, 'none': applyNoDither}[settings.ditherType];
+            if (ditherFunc) ditherFunc(imageData.data, pixelatedWidth, pixelatedHeight, settings.ditherStrength, settings.palette);
+            
+            tempCtx.putImageData(imageData, 0, 0);
+            
+            const targetCanvas = ui.convertedPreview; const targetCtx = targetCanvas.getContext('2d');
+            targetCanvas.width = width; targetCanvas.height = height;
+            targetCtx.imageSmoothingEnabled = false;
+            targetCtx.drawImage(tempCanvas, 0, 0, pixelatedWidth, pixelatedHeight, 0, 0, width, height);
+            
+            ui.statusMessage.textContent = '준비 완료';
+            ui.downloadBtn.classList.remove('invisible');
+        }
+
+        function clamp(v){return Math.max(0,Math.min(255,v))}
+        function applyManualFilters(d,s){const b=s.brightness,c=s.contrast,sat=s.saturation,cf=(259*(c+255))/(255*(259-c));for(let i=0;i<d.length;i+=4){let r=d[i],g=d[i+1],b_px=d[i+2];r+=b;g+=b;b_px+=b;r=clamp(cf*(r-128)+128);g=clamp(cf*(g-128)+128);b_px=clamp(cf*(b_px-128)+128);if(sat!==0){const l=0.299*r+0.587*g+0.114*b_px,sf=1+sat/100;if(sat<0){r+=(l-r)*-sat/100;g+=(l-g)*-sat/100;b_px+=(l-b_px)*-sat/100}else{r=l+(r-l)*sf;g=l+(g-l)*sf;b_px=l+(b_px-l)*sf}}d[i]=clamp(r);d[i+1]=clamp(g);d[i+2]=clamp(b_px)}}
+        function findClosestColor(r,g,b,p){let c=p[0],m=Infinity;for(const o of p){const t=r-o[0],n=g-o[1],a=b-o[2],i=t*t+n*n+a*a;if(i<m){m=i;c=o}}return c}
+        function applyNoDither(d,w,h,s,p){for(let i=0;i<d.length;i+=4){const[r,g,b]=findClosestColor(d[i],d[i+1],d[i+2],p);d[i]=r;d[i+1]=g;d[i+2]=b}}
+        function rgbToHsl(r,g,b){r/=255,g/=255,b/=255;const max=Math.max(r,g,b),min=Math.min(r,g,b);let h,s,l=(max+min)/2;if(max==min)h=s=0;else{const d=max-min;s=l>0.5?d/(2-max-min):d/(max+min);switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;case b:h=(r-g)/d+4;break}h/=6}return[h,s,l]}
+        function hslToRgb(h,s,l){let r,g,b;if(s==0)r=g=b=l;else{const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p};const q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q;r=hue2rgb(p,q,h+1/3);g=hue2rgb(p,q,h);b=hue2rgb(p,q,h-1/3)}return[r*255,g*255,b*255]}
+        function applyBayerDither(d,w,h,s,p){if(s===0){return applyNoDither(d,w,h,s,p)}const l=1/s;for(let y=0;y<h;y++){for(let x=0;x<w;x++){const i=(y*w+x)*4,[h_val,s_val,l_val]=rgbToHsl(d[i],d[i+1],d[i+2]),factor=(bayerMatrix[y%4][x%4]/16-0.5)*0.5/l,ditheredL=Math.max(0,Math.min(1,l_val+factor)),[r,g,b]=hslToRgb(h_val,s_val,ditheredL),[finalR,finalG,finalB]=findClosestColor(r,g,b,p);d[i]=finalR;d[i+1]=finalG;d[i+2]=finalB}}}
+        const floydMatrix=[[1,0,7/16],[-1,1,3/16],[0,1,5/16],[1,1,1/16]],atkinsonMatrix=[[1,0,1/8],[2,0,1/8],[-1,1,1/8],[0,1,1/8],[1,1,1/8],[0,2,1/8]];
+        function applyErrorDiffusionDither(data,w,h,s,p,m){if(s===0){applyNoDither(data,w,h,s,p);return}const d=new Float32Array(data);for(let y=0;y<h;y++){for(let x=0;x<w;x++){const i=(y*w+x)*4,[oR,oG,oB]=[d[i],d[i+1],d[i+2]],[nR,nG,nB]=findClosestColor(oR,oG,oB,p);data[i]=nR;data[i+1]=nG;data[i+2]=nB;const[eR,eG,eB]=[(oR-nR)*s,(oG-nG)*s,(oB-nB)*s];for(const pt of m){const[dx,dy,f]=pt,ni=((y+dy)*w+(x+dx))*4;if(x+dx>=0&&x+dx<w&&y+dy>=0&&y+dy<h){d[ni]+=eR*f;d[ni+1]+=eG*f;d[ni+2]+=eB*f}}}}}
+        const applyFloydSteinbergDither=(d,w,h,s,p)=>applyErrorDiffusionDither(d,w,h,s,p,floydMatrix),applyAtkinsonDither=(d,w,h,s,p)=>applyErrorDiffusionDither(d,w,h,s,p,atkinsonMatrix);
+
+        // --- Event Listeners ---
+        Object.values(ui.sliders).forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                const valueDisplay = ui.values[e.target.id.replace('Slider','')];
+                if(valueDisplay) valueDisplay.textContent = e.target.value;
+            });
+            slider.addEventListener('change', () => {
+                 if(currentImage) scheduleProcessImage();
+            });
+        });
+        const radioControls = document.querySelectorAll('input[type="radio"]');
+        radioControls.forEach(c => { c.addEventListener('change', () => { if (currentImage) scheduleProcessImage(); })});
+        ui.imageLoader.addEventListener('change', handleImage);
+        
+        ui.viewModeToggle.addEventListener('click', () => {
+            const isShowingResult = !ui.convertedPreview.classList.contains('hidden');
+            ui.convertedPreview.classList.toggle('hidden', isShowingResult);
+            ui.originalPreview.classList.toggle('hidden', !isShowingResult);
+            ui.viewModeToggle.textContent = isShowingResult ? '결과 보기' : '원본 보기';
+            ui.previewTitle.textContent = isShowingResult ? '원본.jpg' : '결과물.bmp';
+        });
+        
+        ui.downloadBtn.addEventListener('click', () => {
+            if (!currentImage) return;
+            ui.convertedPreview.toBlob((blob) => {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `${originalFileName}_retro.jpg`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }, 'image/jpeg');
+        });
+    </script>
+</body>
+</html>
+```
