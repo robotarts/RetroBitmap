@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>더 서밋: 데드라인</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #008080;
+            color: #000;
+            font-family: 'VT323', monospace;
+            font-smooth: never;
+            -webkit-font-smoothing: none;
+        }
+        .win-window {
+            background-color: #C0C0C0;
+            border: 2px outset #fff;
+            box-shadow: 1px 1px 0 1px #000;
+        }
+        .win-titlebar {
+            background: linear-gradient(to right, #000080, #1084d0);
+            color: #fff;
+            padding: 3px 5px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .win-panel {
+            border: 2px inset #fff;
+            border-top-color: #808080;
+            border-left-color: #808080;
+            padding: 8px;
+        }
+        .win-btn {
+            background-color: #C0C0C0;
+            border: 2px outset #fff;
+            box-shadow: 1px 1px 0 0 #000;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        .win-btn:active {
+            border-style: inset;
+            box-shadow: none;
+        }
+        .win-btn:disabled {
+            color: #808080;
+            cursor: default;
+        }
+        .win-fieldset {
+            border: 2px groove #fff;
+            border-top-color: #808080;
+            border-left-color: #808080;
+            padding: 10px;
+            margin-top: 5px;
+        }
+        .win-legend {
+            padding: 0 5px;
+            margin-left: 10px;
+        }
+        .win-input {
+            border: 2px inset #fff;
+            border-top-color: #808080;
+            border-left-color: #808080;
+            background: #fff;
+            padding: 2px 6px;
+            width: 100%;
+        }
+        .card-face {
+            width: 90px;
+            height: 130px;
+            border-radius: 6px;
+            border: 3px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            box-shadow: 2px 2px 0 0 #000;
+        }
+        .card-back {
+            background: repeating-linear-gradient(45deg, #000080, #000080 6px, #1084d0 6px, #1084d0 12px);
+        }
+        .gauge-track {
+            position: relative;
+            height: 40px;
+            background: #000;
+            border: 2px inset #fff;
+        }
+        .gauge-zero-line {
+            position: absolute;
+            top: 0; bottom: 0; left: 50%;
+            width: 2px; background: #ffff00;
+        }
+        .gauge-marker {
+            position: absolute;
+            top: -6px;
+            width: 0; height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 14px solid #ff0;
+            transform: translateX(-50%);
+            transition: left 0.5s ease-in-out;
+        }
+        .gauge-fill {
+            position: absolute; top: 0; bottom: 0;
+            transition: all 0.5s ease-in-out;
+        }
+        .blinking-cursor::after {
+            content: '_';
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        .hidden-screen { display: none !important; }
+    </style>
+</head>
+<body class="min-h-screen p-2 text-lg">
+
+<div class="max-w-2xl mx-auto space-y-3 py-4">
+
+    <div class="win-window">
+        <div class="win-titlebar">
+            <span>THE SUMMIT: DEADLINE.exe</span>
+            <span>더 서밋: 데드라인</span>
+        </div>
+        <div class="win-panel text-center">
+            <p class="text-2xl">"정상회담 종료 후, 최종 위기 게이지는 <span class="text-red-700 font-bold">참(+)</span>인가 <span class="text-blue-700 font-bold">거짓(-)</span>인가?"</p>
+        </div>
+    </div>
+
+    <!-- SETUP SCREEN -->
+    <div id="screenSetup" class="win-window">
+        <div class="win-titlebar"><span>플레이어 등록</span></div>
+        <div class="win-panel space-y-3">
+            <fieldset class="win-fieldset">
+                <legend class="win-legend">5인 플레이어 이름</legend>
+                <div id="playerNameInputs" class="grid grid-cols-1 gap-2 p-1"></div>
+            </fieldset>
+            <p class="text-center text-base text-gray-800">
+                이 화면 이후로는 기기를 돌려가며(핫시트) 각자 카드를 확인하고 베팅합니다.<br>
+                자기 차례가 아니면 화면을 보지 마세요!
+            </p>
+            <button id="startGameBtn" class="win-btn w-full text-xl">게임 시작</button>
+        </div>
+    </div>
+
+    <!-- PASS / HOTSEAT SCREEN (private card view + betting) -->
+    <div id="screenPass" class="win-window hidden-screen">
+        <div class="win-titlebar"><span id="passTitle">차례</span></div>
+        <div class="win-panel space-y-3 text-center">
+            <div id="passHandoff">
+                <p class="text-2xl" id="passHandoffText">다음 차례: <span class="font-bold"></span></p>
+                <p class="text-base text-gray-800 mb-3">다른 사람은 화면을 보지 마세요. 준비되면 아래 버튼을 누르세요.</p>
+                <button id="passRevealBtn" class="win-btn text-xl w-full">내 차례입니다 (공개)</button>
+            </div>
+            <div id="passContent" class="hidden-screen space-y-3">
+                <div id="passCardBox" class="hidden-screen">
+                    <p class="mb-2">당신의 비밀 카드입니다:</p>
+                    <div class="flex justify-center">
+                        <div id="myCardFace" class="card-face bg-white"></div>
+                    </div>
+                </div>
+                <div id="passBetBox" class="hidden-screen">
+                    <p class="mb-2">최종 게이지가 <b>참(+1 이상)</b>일지 <b>거짓(0 이하)</b>일지 베팅하세요.</p>
+                    <div class="flex justify-center gap-4">
+                        <button class="win-btn text-xl px-8 bet-btn" data-bet="true">🔴 참</button>
+                        <button class="win-btn text-xl px-8 bet-btn" data-bet="false">🔵 거짓</button>
+                    </div>
+                </div>
+                <button id="passDoneBtn" class="win-btn w-full hidden-screen">확인했습니다 (다음 사람에게 넘기기)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- REVEAL SCREEN -->
+    <div id="screenReveal" class="win-window hidden-screen">
+        <div class="win-titlebar"><span>정상회담 실황 중계</span></div>
+        <div class="win-panel space-y-3">
+            <div>
+                <div class="flex justify-between text-sm mb-1">
+                    <span>거짓(평화) ◀</span><span>기준선 0</span><span>▶ 참(위기)</span>
+                </div>
+                <div class="gauge-track" id="gaugeTrack">
+                    <div class="gauge-zero-line"></div>
+                    <div class="gauge-fill" id="gaugeFill"></div>
+                    <div class="gauge-marker" id="gaugeMarker"></div>
+                </div>
+                <p class="text-center text-3xl mt-2">누적 게이지: <span id="runningTotal" class="font-bold">0</span></p>
+            </div>
+
+            <div id="revealedRow" class="flex flex-wrap justify-center gap-2 min-h-[140px] items-center"></div>
+
+            <div class="text-center">
+                <p id="revealTurnText" class="text-xl mb-2"></p>
+                <button id="revealNextBtn" class="win-btn text-xl px-6">카드 공개</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RESULT SCREEN -->
+    <div id="screenResult" class="win-window hidden-screen">
+        <div class="win-titlebar"><span>최종 결과</span></div>
+        <div class="win-panel space-y-3 text-center">
+            <p class="text-3xl font-bold" id="resultVerdict"></p>
+            <p class="text-xl" id="resultDetail"></p>
+            <div id="resultTable" class="text-left mx-auto inline-block"></div>
+            <p class="text-2xl font-bold mt-2" id="resultOutcome"></p>
+            <button id="playAgainBtn" class="win-btn text-xl w-full mt-3">새 라운드 (다시 섞기)</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // ---------- Card deck ----------
+    function buildDeck() {
+        const nums = [1, 1, 2, 2, 3, -1, -1, -2, -2, -3];
+        const deck = nums.map(v => ({ kind: 'number', value: v }));
+        deck.push({ kind: 'special', special: 'reverse' });
+        deck.push({ kind: 'special', special: 'double' });
+        return deck;
+    }
+
+    function shuffle(arr) {
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
+    function cardLabel(card) {
+        if (card.kind === 'special') {
+            return card.special === 'reverse' ? '🔄 반전' : '✖️ 더블';
+        }
+        return (card.value > 0 ? '+' : '') + card.value;
+    }
+
+    function cardColorClass(card) {
+        if (card.kind === 'special') return 'bg-yellow-200 text-black';
+        return card.value > 0 ? 'bg-red-200 text-red-800' : 'bg-blue-200 text-blue-800';
+    }
+
+    // ---------- Game state ----------
+    let players = []; // {name, card, bet}
+    let passQueue = [];
+    let revealIndex = 0;
+    let runningTotal = 0;
+
+    const el = id => document.getElementById(id);
+    const screens = ['screenSetup', 'screenPass', 'screenReveal', 'screenResult'];
+    function showScreen(id) {
+        screens.forEach(s => el(s).classList.toggle('hidden-screen', s !== id));
+    }
+
+    // ---------- Setup ----------
+    function renderNameInputs() {
+        const box = el('playerNameInputs');
+        box.innerHTML = '';
+        for (let i = 0; i < 5; i++) {
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2';
+            row.innerHTML = `<span class="w-16">P${i + 1}</span><input type="text" class="win-input player-name-input" placeholder="Player ${i + 1}">`;
+            box.appendChild(row);
+        }
+    }
+
+    function startGame() {
+        const inputs = document.querySelectorAll('.player-name-input');
+        players = Array.from(inputs).map((inp, i) => ({
+            name: inp.value.trim() || `Player ${i + 1}`,
+            card: null,
+            bet: null
+        }));
+
+        const deck = shuffle(buildDeck());
+        players.forEach((p, i) => { p.card = deck[i]; });
+
+        // Build the hotseat queue: everyone views their card, then everyone bets.
+        passQueue = [];
+        players.forEach((_, i) => passQueue.push({ type: 'view', playerIndex: i }));
+        players.forEach((_, i) => passQueue.push({ type: 'bet', playerIndex: i }));
+
+        showScreen('screenPass');
+        nextPassStep();
+    }
+
+    // ---------- Hotseat pass flow ----------
+    let currentBetChoice = null;
+
+    function nextPassStep() {
+        el('passHandoff').classList.remove('hidden-screen');
+        el('passContent').classList.add('hidden-screen');
+        el('passCardBox').classList.add('hidden-screen');
+        el('passBetBox').classList.add('hidden-screen');
+        el('passDoneBtn').classList.add('hidden-screen');
+        currentBetChoice = null;
+
+        if (passQueue.length === 0) {
+            startReveal();
+            return;
+        }
+        const step = passQueue[0];
+        const player = players[step.playerIndex];
+        el('passTitle').textContent = step.type === 'view' ? '카드 확인' : '비밀 투표';
+        el('passHandoffText').innerHTML = `다음 차례: <span class="font-bold">${escapeHtml(player.name)}</span>`;
+    }
+
+    function revealPassStep() {
+        const step = passQueue[0];
+        const player = players[step.playerIndex];
+        el('passHandoff').classList.add('hidden-screen');
+        el('passContent').classList.remove('hidden-screen');
+
+        if (step.type === 'view') {
+            el('passCardBox').classList.remove('hidden-screen');
+            const face = el('myCardFace');
+            face.textContent = cardLabel(player.card);
+            face.className = 'card-face ' + cardColorClass(player.card);
+            el('passDoneBtn').classList.remove('hidden-screen');
+        } else {
+            el('passBetBox').classList.remove('hidden-screen');
+            // done button stays hidden until a bet choice is made
+        }
+    }
+
+    function finishPassStep() {
+        passQueue.shift();
+        nextPassStep();
+    }
+
+    function escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    // ---------- Reveal phase ----------
+    function startReveal() {
+        showScreen('screenReveal');
+        revealIndex = 0;
+        runningTotal = 0;
+        el('revealedRow').innerHTML = '';
+        updateGauge(0);
+        setRevealTurnText();
+    }
+
+    function setRevealTurnText() {
+        if (revealIndex >= players.length) {
+            el('revealTurnText').textContent = '모든 카드가 공개되었습니다!';
+            el('revealNextBtn').textContent = '최종 결과 확인';
+        } else {
+            el('revealTurnText').textContent = `${players[revealIndex].name}의 카드를 공개합니다.`;
+            el('revealNextBtn').textContent = '카드 공개';
+        }
+    }
+
+    function updateGauge(value) {
+        el('runningTotal').textContent = (value > 0 ? '+' : '') + value;
+        const clamped = Math.max(-12, Math.min(12, value));
+        const pct = (clamped / 12) * 50; // percent offset from center, max 50%
+        el('gaugeMarker').style.left = `calc(50% + ${pct}%)`;
+
+        const fill = el('gaugeFill');
+        if (clamped >= 0) {
+            fill.style.left = '50%';
+            fill.style.right = `${50 - pct}%`;
+            fill.style.background = '#b91c1c';
+        } else {
+            fill.style.right = '50%';
+            fill.style.left = `${50 + pct}%`;
+            fill.style.background = '#1d4ed8';
+        }
+    }
+
+    function revealNextCard() {
+        if (revealIndex >= players.length) {
+            showResult();
+            return;
+        }
+        const player = players[revealIndex];
+        const card = player.card;
+
+        if (card.kind === 'number') {
+            runningTotal += card.value;
+        } else if (card.special === 'reverse') {
+            runningTotal = -runningTotal;
+        } else if (card.special === 'double') {
+            runningTotal = runningTotal * 2;
+        }
+
+        const wrap = document.createElement('div');
+        wrap.className = 'flex flex-col items-center';
+        const face = document.createElement('div');
+        face.className = 'card-face ' + cardColorClass(card);
+        face.textContent = cardLabel(card);
+        const label = document.createElement('span');
+        label.className = 'text-sm mt-1';
+        label.textContent = player.name;
+        wrap.appendChild(face);
+        wrap.appendChild(label);
+        el('revealedRow').appendChild(wrap);
+
+        updateGauge(runningTotal);
+        revealIndex++;
+        setRevealTurnText();
+    }
+
+    // ---------- Result ----------
+    function showResult() {
+        showScreen('screenResult');
+        const outcomeIsTrue = runningTotal >= 1;
+        el('resultVerdict').textContent = outcomeIsTrue
+            ? '판정: 참 (위기 고조) 🔴'
+            : '판정: 거짓 (평화 유지) 🔵';
+        el('resultVerdict').className = 'text-3xl font-bold ' + (outcomeIsTrue ? 'text-red-700' : 'text-blue-700');
+        el('resultDetail').textContent = `최종 누적 게이지: ${runningTotal > 0 ? '+' : ''}${runningTotal}`;
+
+        const winners = players.filter(p => p.bet === outcomeIsTrue);
+        const losers = players.filter(p => p.bet !== outcomeIsTrue);
+
+        const table = document.createElement('table');
+        table.className = 'text-lg';
+        table.innerHTML = `<tr class="border-b-2 border-black"><th class="pr-4 text-left">플레이어</th><th class="pr-4 text-left">카드</th><th class="pr-4 text-left">베팅</th><th class="text-left">결과</th></tr>` +
+            players.map(p => {
+                const correct = p.bet === outcomeIsTrue;
+                return `<tr>
+                    <td class="pr-4">${escapeHtml(p.name)}</td>
+                    <td class="pr-4">${cardLabel(p.card)}</td>
+                    <td class="pr-4">${p.bet ? '참' : '거짓'}</td>
+                    <td class="${correct ? 'text-green-700 font-bold' : 'text-gray-500'}">${correct ? '적중 ✅' : '탈락 ❌'}</td>
+                </tr>`;
+            }).join('');
+        el('resultTable').innerHTML = '';
+        el('resultTable').appendChild(table);
+
+        let outcomeMsg;
+        if (winners.length === players.length) {
+            outcomeMsg = '전원 정답! 상금을 균등하게 나눕니다.';
+        } else if (winners.length === 0) {
+            outcomeMsg = '전원 탈락! 상금은 다음 라운드로 이월됩니다.';
+        } else if (winners.length === 1) {
+            outcomeMsg = `🎉 ${winners[0].name} 단독 상금 독식!`;
+        } else {
+            outcomeMsg = `적중자: ${winners.map(w => w.name).join(', ')} — 상금을 나눠 가집니다.`;
+        }
+        el('resultOutcome').textContent = outcomeMsg;
+    }
+
+    // ---------- Event wiring ----------
+    el('startGameBtn').addEventListener('click', startGame);
+    el('passRevealBtn').addEventListener('click', revealPassStep);
+    el('passDoneBtn').addEventListener('click', finishPassStep);
+    el('revealNextBtn').addEventListener('click', revealNextCard);
+    el('playAgainBtn').addEventListener('click', () => {
+        showScreen('screenSetup');
+        renderNameInputs();
+        // keep previously entered names as defaults
+        document.querySelectorAll('.player-name-input').forEach((inp, i) => {
+            if (players[i]) inp.value = players[i].name;
+        });
+    });
+
+    document.querySelectorAll('.bet-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const step = passQueue[0];
+            players[step.playerIndex].bet = btn.dataset.bet === 'true';
+            document.querySelectorAll('.bet-btn').forEach(b => b.classList.remove('border-black', 'ring-4'));
+            btn.classList.add('ring-4');
+            el('passDoneBtn').classList.remove('hidden-screen');
+        });
+    });
+
+    renderNameInputs();
+    showScreen('screenSetup');
+</script>
+</body>
+</html>
