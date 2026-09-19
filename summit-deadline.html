@@ -118,6 +118,20 @@
             50% { opacity: 0; }
         }
         .hidden-screen { display: none !important; }
+        .claim-btn.chosen, .bet-btn.chosen, .solo-bet-btn.chosen {
+            outline: 4px solid #000080;
+        }
+        .deck-ref {
+            font-size: 0.95rem;
+            background: #fff;
+            border: 2px inset #fff;
+            border-top-color: #808080;
+            border-left-color: #808080;
+            padding: 6px 8px;
+            text-align: left;
+        }
+        .claim-match { color: #15803d; }
+        .claim-mismatch { color: #b91c1c; }
     </style>
 </head>
 <body class="min-h-screen p-2 text-lg">
@@ -153,7 +167,7 @@
                 </div>
                 <p class="text-center text-base text-gray-800 px-1">
                     당신을 포함해 5명이 정상회담에 참여합니다. 나머지 4명은 AI 특사가 맡습니다.<br>
-                    당신의 카드만 확인한 뒤 참/거짓에 베팅하세요.
+                    각자 자기 카드의 종류를 <b>공개 선언</b>합니다 (거짓 선언 가능!). 선언을 다 들은 뒤 베팅하세요.
                 </p>
             </fieldset>
 
@@ -161,8 +175,8 @@
                 <legend class="win-legend">5인 플레이어 이름</legend>
                 <div id="playerNameInputs" class="grid grid-cols-1 gap-2 p-1"></div>
                 <p class="text-center text-base text-gray-800 px-1">
-                    이 화면 이후로는 기기를 돌려가며(핫시트) 각자 카드를 확인하고 베팅합니다.<br>
-                    자기 차례가 아니면 화면을 보지 마세요!
+                    각자 카드를 보고 공개 선언(진실 또는 거짓말)을 정합니다. 모든 선언이 공개된 뒤,
+                    돌아가며 몰래 베팅합니다. 자기 차례가 아니면 화면을 보지 마세요!
                 </p>
             </fieldset>
 
@@ -178,7 +192,9 @@
             <div class="flex justify-center">
                 <div id="soloCardFace" class="card-face bg-white"></div>
             </div>
-            <div id="soloChatBox" class="text-left space-y-1 bg-white win-panel"></div>
+            <div class="deck-ref" id="soloDeckRef"></div>
+            <p class="font-bold mt-2">AI 특사들의 공개 선언 (거짓말일 수도 있습니다!)</p>
+            <div id="soloChatBox" class="text-left space-y-2 bg-white win-panel"></div>
             <p class="mt-2">최종 게이지가 <b>참(+1 이상)</b>일지 <b>거짓(0 이하)</b>일지 베팅하세요.</p>
             <div class="flex justify-center gap-4">
                 <button class="win-btn text-xl px-8 solo-bet-btn" data-bet="true">🔴 참</button>
@@ -188,7 +204,7 @@
         </div>
     </div>
 
-    <!-- PASS / HOTSEAT SCREEN (private card view + betting) -->
+    <!-- PASS / HOTSEAT SCREEN (private card view + declare, then private betting) -->
     <div id="screenPass" class="win-window hidden-screen">
         <div class="win-titlebar"><span id="passTitle">차례</span></div>
         <div class="win-panel space-y-3 text-center">
@@ -204,6 +220,16 @@
                         <div id="myCardFace" class="card-face bg-white"></div>
                     </div>
                 </div>
+                <div id="passClaimBox" class="hidden-screen">
+                    <p class="mb-2">잠시 후 모두에게 공개될 <b>선언</b>을 고르세요 (진실이든 거짓이든 자유롭게!):</p>
+                    <div class="flex flex-wrap justify-center gap-2">
+                        <button class="win-btn claim-btn" data-claim="positive">🔴 제 카드는 + 계열입니다</button>
+                        <button class="win-btn claim-btn" data-claim="negative">🔵 제 카드는 - 계열입니다</button>
+                        <button class="win-btn claim-btn" data-claim="special">⚡ 제 카드는 특수카드입니다</button>
+                    </div>
+                </div>
+                <div id="passDeckRefBox" class="deck-ref hidden-screen"></div>
+                <div id="passDeclareSummaryBox" class="text-left bg-white win-panel hidden-screen"></div>
                 <div id="passBetBox" class="hidden-screen">
                     <p class="mb-2">최종 게이지가 <b>참(+1 이상)</b>일지 <b>거짓(0 이하)</b>일지 베팅하세요.</p>
                     <div class="flex justify-center gap-4">
@@ -213,6 +239,18 @@
                 </div>
                 <button id="passDoneBtn" class="win-btn w-full hidden-screen">확인했습니다 (다음 사람에게 넘기기)</button>
             </div>
+        </div>
+    </div>
+
+    <!-- PUBLIC DECLARATIONS SCREEN (hotseat only) -->
+    <div id="screenDeclare" class="win-window hidden-screen">
+        <div class="win-titlebar"><span>모두의 선언 공개</span></div>
+        <div class="win-panel space-y-3 text-center">
+            <p>이제 모두 화면을 봐도 됩니다. 각자의 공개 선언입니다 (거짓말이 섞여 있을 수 있습니다):</p>
+            <div id="declareTable" class="text-left mx-auto inline-block bg-white win-panel"></div>
+            <div class="deck-ref" id="declareDeckRef"></div>
+            <p class="text-base text-gray-800">토론을 마쳤다면, 다시 기기를 돌려가며 몰래 베팅합니다.</p>
+            <button id="startBettingBtn" class="win-btn text-xl w-full">베팅 시작</button>
         </div>
     </div>
 
@@ -249,6 +287,7 @@
             <p class="text-xl" id="resultDetail"></p>
             <div id="resultTable" class="text-left mx-auto inline-block"></div>
             <p class="text-2xl font-bold mt-2" id="resultOutcome"></p>
+            <div id="resultLedger" class="text-left mx-auto inline-block bg-white win-panel mt-2"></div>
             <button id="playAgainBtn" class="win-btn text-xl w-full mt-3">새 라운드 (다시 섞기)</button>
         </div>
     </div>
@@ -286,30 +325,36 @@
         return card.value > 0 ? 'bg-red-200 text-red-800' : 'bg-blue-200 text-blue-800';
     }
 
+    function categoryOf(card) {
+        if (card.kind === 'special') return 'special';
+        return card.value > 0 ? 'positive' : 'negative';
+    }
+
+    const CLAIM_SHORT = { positive: '+ 계열', negative: '- 계열', special: '특수카드' };
+    const DECK_SUMMARY = '전체 덱(12장): +1×2, +2×2, +3×1, -1×2, -2×2, -3×1, 🔄반전×1, ✖️더블×1 — 이번 판엔 이 중 5장만 쓰입니다. 판정: 최종 합계 +1 이상=참, 0 이하=거짓.';
+
+    function escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
     // ---------- Game state ----------
-    let players = []; // {name, card, bet, isAI}
-    let passQueue = [];
+    let players = []; // {name, card, bet, isAI, claim, honesty}
+    let viewQueue = [];
+    let betQueue = [];
     let revealIndex = 0;
     let runningTotal = 0;
+    let currentClaimChoice = null;
 
     const el = id => document.getElementById(id);
-    const screens = ['screenSetup', 'screenSolo', 'screenPass', 'screenReveal', 'screenResult'];
+    const screens = ['screenSetup', 'screenSolo', 'screenPass', 'screenDeclare', 'screenReveal', 'screenResult'];
     function showScreen(id) {
         screens.forEach(s => el(s).classList.toggle('hidden-screen', s !== id));
     }
 
     // ---------- AI opponents (solo mode) ----------
     const AI_NAME_POOL = ['김특사', '박대사', '이보좌관', '최통역관', '정고문', '한자문관'];
-    const AI_CHAT_LINES = [
-        '이번엔 분위기가 심상치 않던데요...',
-        '저는 나쁘지 않은 패를 쥔 것 같아요.',
-        '솔직히 저도 감이 잘 안 옵니다.',
-        '제 생각엔 평화적으로 끝날 것 같아요.',
-        '이거 위기로 치닫는 거 아닌가 싶은데요.',
-        '다들 표정 관리 잘하시네요, 후후.',
-        '전 이미 마음을 정했습니다.',
-        '괜히 긴장되네요.'
-    ];
 
     function aiDecideBet(card) {
         let bias = 0;
@@ -318,8 +363,48 @@
         return Math.random() < prob;
     }
 
-    function randomChatLine() {
-        return AI_CHAT_LINES[Math.floor(Math.random() * AI_CHAT_LINES.length)];
+    function assignAiHonesty() {
+        return 0.35 + Math.random() * 0.5; // 35%~85% chance of telling the truth
+    }
+
+    // AI claims their true category if "honest" this round; otherwise it claims
+    // whatever category would nudge others toward the bet the AI already locked in.
+    function aiMakeClaim(player) {
+        const trueCategory = categoryOf(player.card);
+        if (Math.random() < player.honesty) return trueCategory;
+        return player.bet ? 'positive' : 'negative';
+    }
+
+    function claimSentence(name, claim) {
+        const line = {
+            positive: '제 카드는 위기 쪽(+)에 가까운 것 같아요.',
+            negative: '제 카드는 평화 쪽(-)에 가까운 것 같아요.',
+            special: '제 카드는 반전이나 더블 같은 특수한 느낌이에요.'
+        }[claim];
+        return `<span class="font-bold">${escapeHtml(name)}:</span> "${line}" <span class="text-sm text-gray-600">(선언: ${CLAIM_SHORT[claim]})</span>`;
+    }
+
+    // ---------- Honesty ledger (persisted per-browser, solo AI only) ----------
+    function loadLedger() {
+        try { return JSON.parse(localStorage.getItem('summitDeadlineLedger') || '{}'); }
+        catch (e) { return {}; }
+    }
+    function saveLedger(ledger) {
+        try { localStorage.setItem('summitDeadlineLedger', JSON.stringify(ledger)); }
+        catch (e) { /* storage unavailable; ignore */ }
+    }
+    function ledgerSummary(name) {
+        const ledger = loadLedger();
+        const rec = ledger[name];
+        if (!rec || rec.truths + rec.lies === 0) return '이전 기록 없음';
+        const total = rec.truths + rec.lies;
+        return `과거 전적 ${rec.truths}/${total}회 진실 (${Math.round((rec.truths / total) * 100)}%)`;
+    }
+    function recordClaimResult(name, wasTruthful) {
+        const ledger = loadLedger();
+        if (!ledger[name]) ledger[name] = { truths: 0, lies: 0 };
+        if (wasTruthful) ledger[name].truths++; else ledger[name].lies++;
+        saveLedger(ledger);
     }
 
     // ---------- Setup ----------
@@ -336,30 +421,21 @@
 
     function startGame() {
         const isSolo = document.querySelector('input[name="mode"]:checked').value === 'solo';
-
-        if (isSolo) {
-            startSoloGame();
-        } else {
-            startHotseatGame();
-        }
+        if (isSolo) startSoloGame(); else startHotseatGame();
     }
 
     function startHotseatGame() {
         const inputs = document.querySelectorAll('.player-name-input');
         players = Array.from(inputs).map((inp, i) => ({
             name: inp.value.trim() || `Player ${i + 1}`,
-            card: null,
-            bet: null,
-            isAI: false
+            card: null, bet: null, isAI: false, claim: null
         }));
 
         const deck = shuffle(buildDeck());
         players.forEach((p, i) => { p.card = deck[i]; });
 
-        // Build the hotseat queue: everyone views their card, then everyone bets.
-        passQueue = [];
-        players.forEach((_, i) => passQueue.push({ type: 'view', playerIndex: i }));
-        players.forEach((_, i) => passQueue.push({ type: 'bet', playerIndex: i }));
+        viewQueue = players.map((_, i) => ({ type: 'view', playerIndex: i }));
+        betQueue = players.map((_, i) => ({ type: 'bet', playerIndex: i }));
 
         showScreen('screenPass');
         nextPassStep();
@@ -370,81 +446,116 @@
         const aiNames = shuffle(AI_NAME_POOL).slice(0, 4);
 
         players = shuffle([
-            { name: humanName, card: null, bet: null, isAI: false },
-            ...aiNames.map(n => ({ name: n, card: null, bet: null, isAI: true }))
+            { name: humanName, card: null, bet: null, isAI: false, claim: null },
+            ...aiNames.map(n => ({ name: n, card: null, bet: null, isAI: true, claim: null, honesty: assignAiHonesty() }))
         ]);
 
         const deck = shuffle(buildDeck());
         players.forEach((p, i) => { p.card = deck[i]; });
 
-        // AI players lock in their bets immediately (they only know their own card).
-        players.forEach(p => { if (p.isAI) p.bet = aiDecideBet(p.card); });
+        // AI players lock in a hidden bet from their own card, then decide what to
+        // publicly claim -- honest players reveal their true category, dishonest
+        // ones claim whatever supports the bet they already made.
+        players.forEach(p => {
+            if (p.isAI) {
+                p.bet = aiDecideBet(p.card);
+                p.claim = aiMakeClaim(p);
+            }
+        });
 
         const human = players.find(p => !p.isAI);
         const face = el('soloCardFace');
         face.textContent = cardLabel(human.card);
         face.className = 'card-face ' + cardColorClass(human.card);
 
+        el('soloDeckRef').textContent = DECK_SUMMARY;
+
         const chatBox = el('soloChatBox');
         chatBox.innerHTML = players
             .filter(p => p.isAI)
-            .map(p => `<p><span class="font-bold">${escapeHtml(p.name)}:</span> ${escapeHtml(randomChatLine())}</p>`)
+            .map(p => `<p>${claimSentence(p.name, p.claim)} <span class="text-sm text-gray-500">— ${ledgerSummary(p.name)}</span></p>`)
             .join('');
 
-        document.querySelectorAll('.solo-bet-btn').forEach(b => b.classList.remove('ring-4'));
+        document.querySelectorAll('.solo-bet-btn').forEach(b => b.classList.remove('chosen'));
         el('soloConfirmBtn').classList.add('hidden-screen');
 
         showScreen('screenSolo');
     }
 
-    // ---------- Hotseat pass flow ----------
-    let currentBetChoice = null;
-
+    // ---------- Hotseat pass flow (view+declare, then reveal declarations, then bet) ----------
     function nextPassStep() {
         el('passHandoff').classList.remove('hidden-screen');
         el('passContent').classList.add('hidden-screen');
         el('passCardBox').classList.add('hidden-screen');
+        el('passClaimBox').classList.add('hidden-screen');
+        el('passDeckRefBox').classList.add('hidden-screen');
+        el('passDeclareSummaryBox').classList.add('hidden-screen');
         el('passBetBox').classList.add('hidden-screen');
         el('passDoneBtn').classList.add('hidden-screen');
-        currentBetChoice = null;
+        currentClaimChoice = null;
 
-        if (passQueue.length === 0) {
-            startReveal();
+        if (viewQueue.length > 0) {
+            const player = players[viewQueue[0].playerIndex];
+            el('passTitle').textContent = '카드 확인 & 선언 정하기';
+            el('passHandoffText').innerHTML = `다음 차례: <span class="font-bold">${escapeHtml(player.name)}</span>`;
             return;
         }
-        const step = passQueue[0];
-        const player = players[step.playerIndex];
-        el('passTitle').textContent = step.type === 'view' ? '카드 확인' : '비밀 투표';
-        el('passHandoffText').innerHTML = `다음 차례: <span class="font-bold">${escapeHtml(player.name)}</span>`;
+        if (betQueue.length > 0) {
+            const player = players[betQueue[0].playerIndex];
+            el('passTitle').textContent = '비밀 투표';
+            el('passHandoffText').innerHTML = `다음 차례: <span class="font-bold">${escapeHtml(player.name)}</span>`;
+            return;
+        }
+        startReveal();
     }
 
     function revealPassStep() {
-        const step = passQueue[0];
-        const player = players[step.playerIndex];
         el('passHandoff').classList.add('hidden-screen');
         el('passContent').classList.remove('hidden-screen');
 
-        if (step.type === 'view') {
+        if (viewQueue.length > 0) {
+            const player = players[viewQueue[0].playerIndex];
             el('passCardBox').classList.remove('hidden-screen');
             const face = el('myCardFace');
             face.textContent = cardLabel(player.card);
             face.className = 'card-face ' + cardColorClass(player.card);
-            el('passDoneBtn').classList.remove('hidden-screen');
+            el('passClaimBox').classList.remove('hidden-screen');
+            document.querySelectorAll('.claim-btn').forEach(b => b.classList.remove('chosen'));
         } else {
+            const player = players[betQueue[0].playerIndex];
+            el('passDeckRefBox').classList.remove('hidden-screen');
+            el('passDeckRefBox').textContent = DECK_SUMMARY;
+            el('passDeclareSummaryBox').classList.remove('hidden-screen');
+            el('passDeclareSummaryBox').innerHTML = renderDeclareList();
             el('passBetBox').classList.remove('hidden-screen');
-            // done button stays hidden until a bet choice is made
+            document.querySelectorAll('.bet-btn').forEach(b => b.classList.remove('chosen'));
         }
     }
 
     function finishPassStep() {
-        passQueue.shift();
+        if (viewQueue.length > 0) {
+            viewQueue.shift();
+            if (viewQueue.length === 0) {
+                showDeclareScreen();
+                return;
+            }
+        } else if (betQueue.length > 0) {
+            betQueue.shift();
+        }
         nextPassStep();
     }
 
-    function escapeHtml(str) {
-        const d = document.createElement('div');
-        d.textContent = str;
-        return d.innerHTML;
+    function renderDeclareList() {
+        return '<table class="text-lg">' +
+            '<tr class="border-b-2 border-black"><th class="pr-4 text-left">플레이어</th><th class="text-left">공개 선언</th></tr>' +
+            players.map(p => `<tr><td class="pr-4">${escapeHtml(p.name)}</td><td>${CLAIM_SHORT[p.claim]}</td></tr>`).join('') +
+            '</table>';
+    }
+
+    function showDeclareScreen() {
+        el('declareTable').innerHTML = renderDeclareList();
+        el('declareDeckRef').textContent = DECK_SUMMARY;
+        showScreen('screenDeclare');
     }
 
     // ---------- Reveal phase ----------
@@ -511,6 +622,16 @@
         label.textContent = player.name;
         wrap.appendChild(face);
         wrap.appendChild(label);
+
+        if (player.claim) {
+            const matched = categoryOf(card) === player.claim;
+            const tag = document.createElement('span');
+            tag.className = 'text-xs ' + (matched ? 'claim-match' : 'claim-mismatch');
+            tag.textContent = matched ? `선언(${CLAIM_SHORT[player.claim]}) 일치 ✔` : `선언(${CLAIM_SHORT[player.claim]}) 거짓말! ✘`;
+            wrap.appendChild(tag);
+            if (player.isAI) recordClaimResult(player.name, matched);
+        }
+
         el('revealedRow').appendChild(wrap);
 
         updateGauge(runningTotal);
@@ -529,16 +650,17 @@
         el('resultDetail').textContent = `최종 누적 게이지: ${runningTotal > 0 ? '+' : ''}${runningTotal}`;
 
         const winners = players.filter(p => p.bet === outcomeIsTrue);
-        const losers = players.filter(p => p.bet !== outcomeIsTrue);
 
         const table = document.createElement('table');
         table.className = 'text-lg';
-        table.innerHTML = `<tr class="border-b-2 border-black"><th class="pr-4 text-left">플레이어</th><th class="pr-4 text-left">카드</th><th class="pr-4 text-left">베팅</th><th class="text-left">결과</th></tr>` +
+        table.innerHTML = `<tr class="border-b-2 border-black"><th class="pr-4 text-left">플레이어</th><th class="pr-4 text-left">카드</th><th class="pr-4 text-left">선언</th><th class="pr-4 text-left">베팅</th><th class="text-left">결과</th></tr>` +
             players.map(p => {
                 const correct = p.bet === outcomeIsTrue;
+                const matched = p.claim ? categoryOf(p.card) === p.claim : null;
                 return `<tr>
                     <td class="pr-4">${escapeHtml(p.name)}</td>
                     <td class="pr-4">${cardLabel(p.card)}</td>
+                    <td class="pr-4 ${matched === null ? '' : (matched ? 'claim-match' : 'claim-mismatch')}">${p.claim ? CLAIM_SHORT[p.claim] + (matched ? ' (진실)' : ' (거짓말)') : '-'}</td>
                     <td class="pr-4">${p.bet ? '참' : '거짓'}</td>
                     <td class="${correct ? 'text-green-700 font-bold' : 'text-gray-500'}">${correct ? '적중 ✅' : '탈락 ❌'}</td>
                 </tr>`;
@@ -557,17 +679,25 @@
             outcomeMsg = `적중자: ${winners.map(w => w.name).join(', ')} — 상금을 나눠 가집니다.`;
         }
         el('resultOutcome').textContent = outcomeMsg;
+
+        const aiPlayers = players.filter(p => p.isAI);
+        if (aiPlayers.length > 0) {
+            el('resultLedger').innerHTML = '<p class="font-bold mb-1">AI 특사 누적 정직도 (다음 라운드 추리에 활용하세요)</p>' +
+                aiPlayers.map(p => `<p>${escapeHtml(p.name)}: ${ledgerSummary(p.name)}</p>`).join('');
+        } else {
+            el('resultLedger').innerHTML = '';
+        }
     }
 
     // ---------- Event wiring ----------
     el('startGameBtn').addEventListener('click', startGame);
     el('passRevealBtn').addEventListener('click', revealPassStep);
     el('passDoneBtn').addEventListener('click', finishPassStep);
+    el('startBettingBtn').addEventListener('click', () => { showScreen('screenPass'); nextPassStep(); });
     el('revealNextBtn').addEventListener('click', revealNextCard);
     el('playAgainBtn').addEventListener('click', () => {
         showScreen('screenSetup');
         renderNameInputs();
-        // keep previously entered names as defaults
         document.querySelectorAll('.player-name-input').forEach((inp, i) => {
             if (players[i]) inp.value = players[i].name;
         });
@@ -575,12 +705,22 @@
         if (human) el('soloNameInput').value = human.name;
     });
 
+    document.querySelectorAll('.claim-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const player = players[viewQueue[0].playerIndex];
+            player.claim = btn.dataset.claim;
+            document.querySelectorAll('.claim-btn').forEach(b => b.classList.remove('chosen'));
+            btn.classList.add('chosen');
+            el('passDoneBtn').classList.remove('hidden-screen');
+        });
+    });
+
     document.querySelectorAll('.bet-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            const step = passQueue[0];
-            players[step.playerIndex].bet = btn.dataset.bet === 'true';
-            document.querySelectorAll('.bet-btn').forEach(b => b.classList.remove('border-black', 'ring-4'));
-            btn.classList.add('ring-4');
+            const player = players[betQueue[0].playerIndex];
+            player.bet = btn.dataset.bet === 'true';
+            document.querySelectorAll('.bet-btn').forEach(b => b.classList.remove('chosen'));
+            btn.classList.add('chosen');
             el('passDoneBtn').classList.remove('hidden-screen');
         });
     });
@@ -589,8 +729,8 @@
         btn.addEventListener('click', () => {
             const human = players.find(p => !p.isAI);
             human.bet = btn.dataset.bet === 'true';
-            document.querySelectorAll('.solo-bet-btn').forEach(b => b.classList.remove('ring-4'));
-            btn.classList.add('ring-4');
+            document.querySelectorAll('.solo-bet-btn').forEach(b => b.classList.remove('chosen'));
+            btn.classList.add('chosen');
             el('soloConfirmBtn').classList.remove('hidden-screen');
         });
     });
