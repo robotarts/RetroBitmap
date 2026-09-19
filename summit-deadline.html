@@ -139,14 +139,52 @@
         <div class="win-titlebar"><span>플레이어 등록</span></div>
         <div class="win-panel space-y-3">
             <fieldset class="win-fieldset">
+                <legend class="win-legend">모드 선택</legend>
+                <div class="flex gap-4 p-1 justify-center">
+                    <label class="flex items-center gap-1"><input type="radio" name="mode" value="solo" id="modeSolo" checked> 1인 플레이 (AI 4인)</label>
+                    <label class="flex items-center gap-1"><input type="radio" name="mode" value="hotseat" id="modeHotseat"> 핫시트 (실제 5인)</label>
+                </div>
+            </fieldset>
+
+            <fieldset class="win-fieldset" id="soloSetupBox">
+                <legend class="win-legend">당신의 이름</legend>
+                <div class="p-1">
+                    <input type="text" id="soloNameInput" class="win-input" placeholder="당신의 이름">
+                </div>
+                <p class="text-center text-base text-gray-800 px-1">
+                    당신을 포함해 5명이 정상회담에 참여합니다. 나머지 4명은 AI 특사가 맡습니다.<br>
+                    당신의 카드만 확인한 뒤 참/거짓에 베팅하세요.
+                </p>
+            </fieldset>
+
+            <fieldset class="win-fieldset hidden-screen" id="hotseatSetupBox">
                 <legend class="win-legend">5인 플레이어 이름</legend>
                 <div id="playerNameInputs" class="grid grid-cols-1 gap-2 p-1"></div>
+                <p class="text-center text-base text-gray-800 px-1">
+                    이 화면 이후로는 기기를 돌려가며(핫시트) 각자 카드를 확인하고 베팅합니다.<br>
+                    자기 차례가 아니면 화면을 보지 마세요!
+                </p>
             </fieldset>
-            <p class="text-center text-base text-gray-800">
-                이 화면 이후로는 기기를 돌려가며(핫시트) 각자 카드를 확인하고 베팅합니다.<br>
-                자기 차례가 아니면 화면을 보지 마세요!
-            </p>
+
             <button id="startGameBtn" class="win-btn w-full text-xl">게임 시작</button>
+        </div>
+    </div>
+
+    <!-- SOLO SCREEN (single human player vs 4 AI) -->
+    <div id="screenSolo" class="win-window hidden-screen">
+        <div class="win-titlebar"><span>당신의 정상회담 브리핑</span></div>
+        <div class="win-panel space-y-3 text-center">
+            <p>당신의 비밀 카드입니다:</p>
+            <div class="flex justify-center">
+                <div id="soloCardFace" class="card-face bg-white"></div>
+            </div>
+            <div id="soloChatBox" class="text-left space-y-1 bg-white win-panel"></div>
+            <p class="mt-2">최종 게이지가 <b>참(+1 이상)</b>일지 <b>거짓(0 이하)</b>일지 베팅하세요.</p>
+            <div class="flex justify-center gap-4">
+                <button class="win-btn text-xl px-8 solo-bet-btn" data-bet="true">🔴 참</button>
+                <button class="win-btn text-xl px-8 solo-bet-btn" data-bet="false">🔵 거짓</button>
+            </div>
+            <button id="soloConfirmBtn" class="win-btn w-full hidden-screen">베팅 확정하고 결과 공개로</button>
         </div>
     </div>
 
@@ -249,15 +287,39 @@
     }
 
     // ---------- Game state ----------
-    let players = []; // {name, card, bet}
+    let players = []; // {name, card, bet, isAI}
     let passQueue = [];
     let revealIndex = 0;
     let runningTotal = 0;
 
     const el = id => document.getElementById(id);
-    const screens = ['screenSetup', 'screenPass', 'screenReveal', 'screenResult'];
+    const screens = ['screenSetup', 'screenSolo', 'screenPass', 'screenReveal', 'screenResult'];
     function showScreen(id) {
         screens.forEach(s => el(s).classList.toggle('hidden-screen', s !== id));
+    }
+
+    // ---------- AI opponents (solo mode) ----------
+    const AI_NAME_POOL = ['김특사', '박대사', '이보좌관', '최통역관', '정고문', '한자문관'];
+    const AI_CHAT_LINES = [
+        '이번엔 분위기가 심상치 않던데요...',
+        '저는 나쁘지 않은 패를 쥔 것 같아요.',
+        '솔직히 저도 감이 잘 안 옵니다.',
+        '제 생각엔 평화적으로 끝날 것 같아요.',
+        '이거 위기로 치닫는 거 아닌가 싶은데요.',
+        '다들 표정 관리 잘하시네요, 후후.',
+        '전 이미 마음을 정했습니다.',
+        '괜히 긴장되네요.'
+    ];
+
+    function aiDecideBet(card) {
+        let bias = 0;
+        if (card.kind === 'number') bias = card.value * 0.15;
+        const prob = Math.min(0.9, Math.max(0.1, 0.5 + bias + (Math.random() * 0.4 - 0.2)));
+        return Math.random() < prob;
+    }
+
+    function randomChatLine() {
+        return AI_CHAT_LINES[Math.floor(Math.random() * AI_CHAT_LINES.length)];
     }
 
     // ---------- Setup ----------
@@ -273,11 +335,22 @@
     }
 
     function startGame() {
+        const isSolo = document.querySelector('input[name="mode"]:checked').value === 'solo';
+
+        if (isSolo) {
+            startSoloGame();
+        } else {
+            startHotseatGame();
+        }
+    }
+
+    function startHotseatGame() {
         const inputs = document.querySelectorAll('.player-name-input');
         players = Array.from(inputs).map((inp, i) => ({
             name: inp.value.trim() || `Player ${i + 1}`,
             card: null,
-            bet: null
+            bet: null,
+            isAI: false
         }));
 
         const deck = shuffle(buildDeck());
@@ -290,6 +363,38 @@
 
         showScreen('screenPass');
         nextPassStep();
+    }
+
+    function startSoloGame() {
+        const humanName = el('soloNameInput').value.trim() || '당신';
+        const aiNames = shuffle(AI_NAME_POOL).slice(0, 4);
+
+        players = shuffle([
+            { name: humanName, card: null, bet: null, isAI: false },
+            ...aiNames.map(n => ({ name: n, card: null, bet: null, isAI: true }))
+        ]);
+
+        const deck = shuffle(buildDeck());
+        players.forEach((p, i) => { p.card = deck[i]; });
+
+        // AI players lock in their bets immediately (they only know their own card).
+        players.forEach(p => { if (p.isAI) p.bet = aiDecideBet(p.card); });
+
+        const human = players.find(p => !p.isAI);
+        const face = el('soloCardFace');
+        face.textContent = cardLabel(human.card);
+        face.className = 'card-face ' + cardColorClass(human.card);
+
+        const chatBox = el('soloChatBox');
+        chatBox.innerHTML = players
+            .filter(p => p.isAI)
+            .map(p => `<p><span class="font-bold">${escapeHtml(p.name)}:</span> ${escapeHtml(randomChatLine())}</p>`)
+            .join('');
+
+        document.querySelectorAll('.solo-bet-btn').forEach(b => b.classList.remove('ring-4'));
+        el('soloConfirmBtn').classList.add('hidden-screen');
+
+        showScreen('screenSolo');
     }
 
     // ---------- Hotseat pass flow ----------
@@ -466,6 +571,8 @@
         document.querySelectorAll('.player-name-input').forEach((inp, i) => {
             if (players[i]) inp.value = players[i].name;
         });
+        const human = players.find(p => !p.isAI);
+        if (human) el('soloNameInput').value = human.name;
     });
 
     document.querySelectorAll('.bet-btn').forEach(btn => {
@@ -475,6 +582,25 @@
             document.querySelectorAll('.bet-btn').forEach(b => b.classList.remove('border-black', 'ring-4'));
             btn.classList.add('ring-4');
             el('passDoneBtn').classList.remove('hidden-screen');
+        });
+    });
+
+    document.querySelectorAll('.solo-bet-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const human = players.find(p => !p.isAI);
+            human.bet = btn.dataset.bet === 'true';
+            document.querySelectorAll('.solo-bet-btn').forEach(b => b.classList.remove('ring-4'));
+            btn.classList.add('ring-4');
+            el('soloConfirmBtn').classList.remove('hidden-screen');
+        });
+    });
+    el('soloConfirmBtn').addEventListener('click', startReveal);
+
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const isSolo = document.querySelector('input[name="mode"]:checked').value === 'solo';
+            el('soloSetupBox').classList.toggle('hidden-screen', !isSolo);
+            el('hotseatSetupBox').classList.toggle('hidden-screen', isSolo);
         });
     });
 
