@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<title>Physics Lab — 인터랙티브 물리 데모</title>
+<meta name="description" content="항력을 고려한 발사체 운동, 지구 곡률과 가시선, 추적 유도 기하학, 가우시안 정밀도 모델을 다루는 모바일 친화 인터랙티브 물리 데모.">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="viz-root">
+
+<header class="topbar">
+  <div class="brand">Physics&nbsp;Lab</div>
+  <div class="brand-sub">인터랙티브 물리 데모</div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="데모 선택">
+  <button class="tab on" role="tab" aria-selected="true" data-tab="proj">
+    <span class="ti">①</span><span class="tl">발사체 운동</span>
+  </button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="horizon">
+    <span class="ti">②</span><span class="tl">가시선 &amp; 곡률</span>
+  </button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="pursuit">
+    <span class="ti">③</span><span class="tl">추적 기하학</span>
+  </button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="gauss">
+    <span class="ti">④</span><span class="tl">가우시안 정밀도</span>
+  </button>
+</nav>
+
+<main id="panels">
+
+  <!-- ============ PANEL 1 : PROJECTILE MOTION ============ -->
+  <section class="panel on" id="panel-proj" role="tabpanel">
+    <div class="stage">
+      <canvas id="cv-proj"></canvas>
+      <div class="readout" id="ro-proj">
+        <div><span class="rk">고도</span><span class="rv" id="proj-alt">0 m</span></div>
+        <div><span class="rk">속도</span><span class="rv" id="proj-spd">0 m/s</span></div>
+        <div><span class="rk">경과시간</span><span class="rv" id="proj-t">0.0 s</span></div>
+      </div>
+      <div class="legend">
+        <span class="lg-item"><i class="sw sw-1"></i>대기 중 궤적 (항력+중력)</span>
+        <span class="lg-item"><i class="sw sw-2 dashed"></i>진공 기준 궤적</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="ctl-row">
+        <button class="playbtn" id="proj-play">▶ 발사</button>
+        <button class="resetbtn" id="proj-reset">초기화</button>
+      </div>
+      <label class="slider">
+        <div class="sl-head"><span>초기 속도 v₀</span><span class="sl-val" id="proj-v0-v">180 m/s</span></div>
+        <input type="range" id="proj-v0" min="20" max="900" value="180" step="1">
+      </label>
+      <label class="slider">
+        <div class="sl-head"><span>발사각 θ</span><span class="sl-val" id="proj-ang-v">45°</span></div>
+        <input type="range" id="proj-ang" min="5" max="85" value="45" step="1">
+      </label>
+      <label class="slider">
+        <div class="sl-head"><span>질량 m</span><span class="sl-val" id="proj-m-v">120 kg</span></div>
+        <input type="range" id="proj-m" min="1" max="2000" value="120" step="1">
+      </label>
+      <label class="slider">
+        <div class="sl-head"><span>항력계수 C_d</span><span class="sl-val" id="proj-cd-v">0.30</span></div>
+        <input type="range" id="proj-cd" min="5" max="150" value="30" step="1">
+      </label>
+      <label class="slider">
+        <div class="sl-head"><span>단면적 A</span><span class="sl-val" id="proj-a-v">0.10 m²</span></div>
+        <input type="range" id="proj-a" min="1" max="500" value="10" step="1">
+      </label>
+    </div>
+
+    <div class="explain">
+      <div class="eq" id="eq-proj"></div>
+      <p>발사체에 작용하는 힘은 중력과 <b>공기 저항력</b>입니다. 대기밀도 ρ는 고도에 따라
+      지수적으로 감소하는 단순 지수대기 모델(scale height ≈ 8.5&nbsp;km)을 사용했고,
+      매 프레임 4차 룽게-쿠타(RK4)로 속도·위치를 적분합니다. 점선은 항력이 없는 진공
+      상태의 포물선 궤적으로, 항력이 사거리와 정점고도를 얼마나 줄이는지 비교할 수 있습니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ PANEL 2 : HORIZON & CURVATURE ============ -->
+  <section class="panel" id="panel-horizon" role="tabpanel">
+    <div class="stage">
+      <canvas id="cv-horizon"></canvas>
+      <div class="legend">
+        <span class="lg-item"><i class="sw sw-1"></i>관측탑 A</span>
+        <span class="lg-item"><i class="sw sw-3"></i>대상 물체 B</span>
+        <span class="lg-item"><i class="sw sw-2 dashed"></i>가시선(접선)</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="ctl-row seg" id="planet-seg">
+        <button class="segbtn on" data-re="6371">지구</button>
+        <button class="segbtn" data-re="1737">달</button>
+        <button class="segbtn" data-re="3389">화성</button>
+      </div>
+      <label class="slider">
+        <div class="sl-head"><span>관측탑 높이 h₁</span><span class="sl-val" id="hz-h1-v">30 m</span></div>
+        <input type="range" id="hz-h1" min="1" max="500" value="30" step="1">
+      </label>
+      <label class="slider">
+        <div class="sl-head"><span>대상 물체 고도 h₂</span><span class="sl-val" id="hz-h2-v">200 m</span></div>
+        <input type="range" id="hz-h2" min="0" max="20000" value="200" step="10">
+      </label>
+      <div class="result-line">
+        최대 가시거리 <b id="hz-D">—</b>
+      </div>
+    </div>
+
+    <div class="explain">
+      <div class="eq" id="eq-horizon"></div>
+      <p>행성 표면은 굽어 있으므로, 관측탑과 대상 물체 모두 각자의 높이만큼 지평선
+      너머를 볼 수 있습니다. 두 가시거리의 합이 최대 물리적 관측 거리 D입니다. 아래
+      다이어그램은 곡률을 과장해 표시했습니다(실제 지구 반지름 축척으로는 화면에 담을 수
+      없을 만큼 완만합니다). 지구·달·화성 반지름을 바꿔가며 곡률이 가시거리에 미치는
+      영향을 비교해 보세요.</p>
+      <div class="eq" id="eq-echo"></div>
+      <p>보조 그래프는 반사파(에코) 세기가 거리의 4제곱에 반비례해 감소하는 일반적인
+      역제곱 산란 법칙을 보여줍니다 — 레이더, 소나, 라이다 등 반사파를 이용하는 모든
+      감지 시스템에 공통으로 적용되는 물리입니다. 반사체 크기(σ)가 커질수록 곡선 전체가
+      위로 이동합니다.</p>
+      <canvas id="cv-echo"></canvas>
+      <label class="slider">
+        <div class="sl-head"><span>반사체 크기 σ (상대값)</span><span class="sl-val" id="hz-sigma-v">1.0</span></div>
+        <input type="range" id="hz-sigma" min="1" max="100" value="10" step="1">
+      </label>
+    </div>
+  </section>
+
+  <!-- ============ PANEL 3 : PURSUIT GEOMETRY ============ -->
+  <section class="panel" id="panel-pursuit" role="tabpanel">
+    <div class="stage">
+      <canvas id="cv-pursuit"></canvas>
+      <div class="readout" id="ro-pursuit">
+        <div><span class="rk">최근접거리</span><span class="rv" id="pur-miss">— m</span></div>
+        <div><span class="rk">경과시간</span><span class="rv" id="pur-t">0.0 s</span></div>
+      </div>
+      <div class="legend">
+        <span class="lg-item"><i class="sw sw-3"></i>목표(이동체)</span>
+        <span class="lg-item"><i class="sw sw-2 dashed"></i>단순추적(Pure Pursuit)</span>
+        <span class="lg-item"><i class="sw sw-1"></i>비례항법(Proportional Nav.)</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="ctl-row">
+        <button class="playbtn" id="pur-play">▶ 시작</button>
+        <button class="resetbtn" id="pur-reset">초기화</button>
+      </div>
+      <div class="ctl-row seg" id="pur-path-seg">
+        <button class="segbtn on" data-path="line">직선 이동</button>
+        <button class="segbtn" data-path="weave">지그재그</button>
+        <button class="segbtn" data-path="circle">선회</button>
+      </div>
+      <label class="slider">
+        <div class="sl-head"><span>항법상수 N</span><span class="sl-val" id="pur-n-v">3.5</span></div>
+        <input type="range" id="pur-n" min="10" max="60" value="35" step="1">
+      </label>
+      <label class="slider">
+        <div class="sl-head"><span>추적체 속도 비율 (목표 대비)</span><span class="sl-val" id="pur-spd-v">1.4×</span></div>
+        <input type="range" id="pur-spd" min="105" max="250" value="140" step="5">
+      </label>
+    </div>
+
+    <div class="explain">
+      <div class="eq" id="eq-pursuit"></div>
+      <p>단순추적(Pure Pursuit)은 매 순간 목표의 <b>현재 위치</b>를 향해 방향을 바꾸기
+      때문에 목표가 옆으로 움직이면 뒤로 처지는 나선형 꼬리물기 궤적을 그립니다.
+      비례항법은 목표와의 시선각 변화율(LOS rate, λ̇)에 비례하는 횡가속도를 명령해
+      목표의 미래 위치를 앞질러 요격점으로 직행합니다 — 로봇 추격, 자율주행 추종,
+      랑데부 기동 등에 널리 쓰이는 유도 법칙입니다. N이 커질수록 반응이 민첩해지지만
+      과도하면 진동이 발생합니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ PANEL 4 : GAUSSIAN PRECISION ============ -->
+  <section class="panel" id="panel-gauss" role="tabpanel">
+    <div class="stage">
+      <canvas id="cv-gauss"></canvas>
+      <div class="legend">
+        <span class="lg-item"><i class="sw sw-1"></i>성공확률 P(d)</span>
+        <span class="lg-item"><i class="sw sw-status-warn dashed"></i>판정기준 P=0.5</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <label class="slider">
+        <div class="sl-head"><span>정밀도(표준편차) σ</span><span class="sl-val" id="ga-sigma-v">5.0 m</span></div>
+        <input type="range" id="ga-sigma" min="5" max="200" value="50" step="1">
+      </label>
+      <div class="result-line">
+        P=0.5 유효반경 <b id="ga-r50">—</b>
+      </div>
+    </div>
+
+    <div class="explain">
+      <div class="eq" id="eq-gauss"></div>
+      <p>탄착점, 화살, 다트, 공정 오차처럼 <b>목표 지점 주변에 무작위로 흩어지는 오차</b>는
+      2차원 가우시안(정규분포)으로 근사할 수 있습니다. 중심에서 벗어난 거리 d가 커질수록
+      성공(명중/합격) 확률은 종모양으로 감소하며, σ는 정밀도를 나타냅니다 — σ가 작을수록
+      더 정밀합니다.</p>
+    </div>
+
+    <div class="stage stage-sub">
+      <canvas id="cv-board"></canvas>
+      <div class="legend">
+        <span class="lg-item"><i class="dot dot-good"></i>판정기준 이내</span>
+        <span class="lg-item"><i class="dot dot-muted"></i>판정기준 밖</span>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="playbtn" id="ga-reroll">🎯 다시 시뮬레이션 (n=200)</button>
+      <div class="result-line">
+        실측 성공률 <b id="ga-rate">—</b> · 이론값 <b id="ga-rate-theory">—</b>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <a href="../index.html">← RetroBitmap</a>
+  <span>순수 물리·통계 교육용 데모 · 특정 실물 장비를 모사하지 않습니다</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
